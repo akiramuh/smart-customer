@@ -1,30 +1,76 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:smart_customer_flutter/main.dart';
+import 'package:smart_customer_flutter/models/customer_stats.dart';
+import 'package:smart_customer_flutter/screens/settings_page.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('CustomerStats', () {
+    test('densityStatus sesuai jumlah pengunjung', () {
+      CustomerStats s(int n) => CustomerStats(
+            currentVisitors: n,
+            totalEntry: 0,
+            totalExit: 0,
+          );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      expect(s(0).densityStatus, 'SEPI');
+      expect(s(10).densityStatus, 'SEPI');
+      expect(s(11).densityStatus, 'NORMAL');
+      expect(s(25).densityStatus, 'NORMAL');
+      expect(s(26).densityStatus, 'RAMAI');
+      expect(s(35).densityStatus, 'RAMAI');
+      expect(s(36).densityStatus, 'SANGAT RAMAI');
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('capacityPercentage dibatasi 0..1', () {
+      const over = CustomerStats(
+        currentVisitors: 80,
+        totalEntry: 0,
+        totalExit: 0,
+        maxCapacity: 40,
+      );
+      expect(over.capacityPercentage, 1.0);
+    });
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  group('CustomerStats data basi', () {
+    final now = DateTime(2026, 10, 14, 10, 0, 0);
+
+    CustomerStats stats({DateTime? updated, bool online = true}) =>
+        CustomerStats(
+          currentVisitors: 5,
+          totalEntry: 10,
+          totalExit: 5,
+          sensorOnline: online,
+          lastUpdated: updated,
+        );
+
+    test('tanpa timestamp dianggap basi', () {
+      expect(stats().isStale(now), isTrue);
+      expect(stats().isSensorActive(now), isFalse);
+    });
+
+    test('data baru dianggap aktif', () {
+      final s = stats(updated: now.subtract(const Duration(seconds: 30)));
+      expect(s.isStale(now), isFalse);
+      expect(s.isSensorActive(now), isTrue);
+    });
+
+    test('data lebih lama dari batas dianggap basi', () {
+      final s = stats(updated: now.subtract(const Duration(minutes: 6)));
+      expect(s.isStale(now), isTrue);
+      expect(s.isSensorActive(now), isFalse);
+    });
+
+    test('sensorOnline=false tetap nonaktif walau data baru', () {
+      final s = stats(updated: now, online: false);
+      expect(s.isSensorActive(now), isFalse);
+    });
+  });
+
+  testWidgets('SettingsPage menampilkan judul', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SettingsPage()));
+    expect(find.text('Pengaturan'), findsOneWidget);
+    expect(find.text('Profil Admin'), findsOneWidget);
   });
 }

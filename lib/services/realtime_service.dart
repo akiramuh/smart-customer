@@ -1,33 +1,82 @@
-import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/customer_stats.dart';
 
 class RealtimeService {
-  RealtimeService({Duration interval = const Duration(seconds: 3)})
-      : _interval = interval;
+  RealtimeService({
+    FirebaseFirestore? firestore,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  final Duration _interval;
+  final FirebaseFirestore _firestore;
 
-  Stream<CustomerStats> watchStats() async* {
-    var stats = const CustomerStats(
-      currentVisitors: 28,
-      totalEntry: 35,
-      totalExit: 7,
-    );
+  CollectionReference<Map<String, dynamic>> get _collection =>
+      _firestore.collection('visitor_activity');
 
-    yield stats;
+  static DateTime? _readTime(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
 
-    await for (final _ in Stream.periodic(_interval)) {
-      final nextVisitors = stats.currentVisitors >= 40
-          ? 20
-          : stats.currentVisitors + 1;
+  // Mengambil statistik pengunjung terbaru dari Firestore.
+  Stream<CustomerStats> watchStats() {
+    return _collection
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        return CustomerStats(
+          currentVisitors: 0,
+          totalEntry: 0,
+          totalExit: 0,
+          sensorOnline: false,
+          fromCache: snapshot.metadata.isFromCache,
+        );
+      }
 
-      stats = stats.copyWith(
-        currentVisitors: nextVisitors,
-        totalEntry: stats.totalEntry + 1,
+      final data = snapshot.docs.first.data();
+
+      int readInt(String field) {
+        final value = data[field];
+        if (value is num) return value.toInt();
+        return 0;
+      }
+
+      return CustomerStats(
+        currentVisitors: readInt('jumlahDiDalam'),
+        totalEntry: readInt('totalMasuk'),
+        totalExit: readInt('totalKeluar'),
+        maxCapacity: readInt('maxCapacity') > 0
+            ? readInt('maxCapacity')
+            : 40,
+        sensorOnline: data['sensorOnline'] == true,
+        lastUpdated: _readTime(data['timestamp']),
+        fromCache: snapshot.metadata.isFromCache,
       );
+    });
+  }
 
-      yield stats;
-    }
+  // Mengambil riwayat jumlah pengunjung untuk grafik.
+  Stream<List<double>> watchChartValues() {
+    return _collection
+        .orderBy('timestamp', descending: true)
+        .limit(24)
+        .snapshots()
+        .map((snapshot) {
+      final docs = snapshot.docs.toList().reversed;
+
+      return docs.map((doc) {
+        final data = doc.data();
+        final value = data['jumlahDiDalam'];
+
+        if (value is num) {
+          return value.toDouble();
+        }
+
+        return 0.0;
+      }).toList();
+    });
   }
 }

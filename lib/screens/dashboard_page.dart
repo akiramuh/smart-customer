@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/customer_stats.dart';
@@ -19,7 +21,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   static const _textDark = Color(0xFF152033);
   static const _muted = Color(0xFF657184);
-  static const _blue = Color(0xFF1565C0);
 
   @override
   Widget build(BuildContext context) {
@@ -58,27 +59,87 @@ class _DashboardPageState extends State<DashboardPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final stats = snapshot.data ??
-              const CustomerStats(
-                currentVisitors: 28,
-                totalEntry: 35,
-                totalExit: 7,
-              );
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Gagal mengambil data: ${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
 
-          return _DashboardContent(stats: stats);
+          if (!snapshot.hasData) {
+            return const Center(
+              child: Text(
+                'Belum ada data pengunjung dari Firestore.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+        return _DashboardContent(stats: snapshot.data!);
         },
       ),
     );
   }
 }
 
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends StatefulWidget {
   final CustomerStats stats;
 
   const _DashboardContent({required this.stats});
 
   @override
+  State<_DashboardContent> createState() => _DashboardContentState();
+}
+
+class _DashboardContentState extends State<_DashboardContent> {
+  // Firestore hanya mengirim event saat data berubah, jadi tanpa timer
+  // status "data basi" tidak akan pernah muncul ketika ESP32 mati.
+  Timer? _ticker;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String _formatTime(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+  }
+
+  String _lastUpdateText(CustomerStats stats) {
+    final updated = stats.lastUpdated;
+    if (updated == null) return 'Tidak ada data';
+
+    final diff = _now.difference(updated);
+    if (diff.inSeconds < 60) return '${_formatTime(updated)} (baru saja)';
+    if (diff.inMinutes < 60) {
+      return '${_formatTime(updated)} (${diff.inMinutes} mnt lalu)';
+    }
+    if (diff.inHours < 24) {
+      return '${_formatTime(updated)} (${diff.inHours} jam lalu)';
+    }
+    return '${updated.day}/${updated.month}/${updated.year} ${_formatTime(updated)}';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final stats = widget.stats;
+    final sensorActive = stats.isSensorActive(_now);
+    final stale = stats.isStale(_now);
+    final live = !stats.fromCache && sensorActive;
+    final capacity = stats.maxCapacity;
     final capacityText = '${(stats.capacityPercentage * 100).round()}%';
 
     return SingleChildScrollView(
@@ -130,13 +191,17 @@ class _DashboardContent extends StatelessWidget {
                         color: Colors.white24,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.circle, color: Colors.greenAccent, size: 9),
-                          SizedBox(width: 5),
+                          Icon(
+                            Icons.circle,
+                            color: live ? Colors.greenAccent : Colors.redAccent,
+                            size: 9,
+                          ),
+                          const SizedBox(width: 5),
                           Text(
-                            'LIVE',
-                            style: TextStyle(
+                            live ? 'LIVE' : (stale ? 'TERTUNDA' : 'OFFLINE'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 11,
@@ -188,9 +253,10 @@ class _DashboardContent extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Text(
-                      'Kapasitas maksimal 40 orang',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    Text(
+                      'Kapasitas maksimal $capacity orang',
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     const Spacer(),
                     Text(
@@ -254,11 +320,11 @@ class _DashboardContent extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: StatCard(
                   icon: Icons.groups,
                   title: 'Kapasitas',
-                  value: '40',
+                  value: '$capacity',
                 ),
               ),
               const SizedBox(width: 12),
@@ -266,8 +332,8 @@ class _DashboardContent extends StatelessWidget {
                 child: StatCard(
                   icon: Icons.sensors,
                   title: 'Sensor',
-                  value: stats.sensorOnline ? 'Online' : 'Offline',
-                  valueColor: stats.sensorOnline ? Colors.green : Colors.red,
+                  value: sensorActive ? 'Online' : 'Offline',
+                  valueColor: sensorActive ? Colors.green : Colors.red,
                 ),
               ),
             ],
@@ -280,20 +346,23 @@ class _DashboardContent extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Tren Pengunjung',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(height: 4),
-                Text(
+                const SizedBox(height: 4),
+                const Text(
                   'Data pengunjung beberapa jam terakhir',
                   style: TextStyle(fontSize: 12, color: Color(0xFF657184)),
                 ),
-                SizedBox(height: 18),
-                SizedBox(height: 180, child: CustomerChart()),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 180,
+                  child: CustomerChart(maxValue: capacity.toDouble()),
+                ),
               ],
             ),
           ),
@@ -305,33 +374,33 @@ class _DashboardContent extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Status Sistem',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(height: 15),
+                const SizedBox(height: 15),
                 StatusItem(
                   label: 'Internet',
-                  value: 'Terhubung',
-                  color: Colors.green,
+                  value: stats.fromCache ? 'Tidak terhubung' : 'Terhubung',
+                  color: stats.fromCache ? Colors.red : Colors.green,
                 ),
                 StatusItem(
                   label: 'ESP32',
-                  value: 'Online',
-                  color: Colors.green,
+                  value: stale ? 'Tidak merespons' : 'Online',
+                  color: stale ? Colors.red : Colors.green,
                 ),
                 StatusItem(
                   label: 'Sensor',
-                  value: 'Aktif',
-                  color: Colors.green,
+                  value: sensorActive ? 'Aktif' : 'Nonaktif',
+                  color: sensorActive ? Colors.green : Colors.red,
                 ),
                 StatusItem(
                   label: 'Update terakhir',
-                  value: 'Real-Time',
-                  color: Colors.blue,
+                  value: _lastUpdateText(stats),
+                  color: stale ? Colors.orange : Colors.blue,
                 ),
               ],
             ),
