@@ -15,7 +15,7 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  runApp(const SmartCustomerApp());
+  runApp(const SmartCustomerApp());q
 }
 
 class SmartCustomerApp extends StatelessWidget {
