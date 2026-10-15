@@ -77,7 +77,7 @@ class _DashboardPageState extends State<DashboardPage> {
             );
           }
 
-        return _DashboardContent(stats: snapshot.data!);
+          return _DashboardContent(stats: snapshot.data!);
         },
       ),
     );
@@ -173,18 +173,22 @@ class _DashboardContentState extends State<_DashboardContent> {
               children: [
                 Row(
                   children: [
-                    const Text(
-                      'MONITORING REAL-TIME',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                    const Expanded(
+                      child: Text(
+                        'MONITORING REAL-TIME',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 10,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
@@ -192,6 +196,7 @@ class _DashboardContentState extends State<_DashboardContent> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.circle,
@@ -221,12 +226,18 @@ class _DashboardContentState extends State<_DashboardContent> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      '${stats.currentVisitors}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 64,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${stats.currentVisitors}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 64,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -253,12 +264,18 @@ class _DashboardContentState extends State<_DashboardContent> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text(
-                      'Kapasitas maksimal $capacity orang',
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 12),
+                    Expanded(
+                      child: Text(
+                        'Kapasitas maksimal $capacity orang',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     Text(
                       capacityText,
                       style: const TextStyle(
@@ -282,13 +299,20 @@ class _DashboardContentState extends State<_DashboardContent> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Status: ${stats.densityStatus}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          'Status: ${stats.densityStatus}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
