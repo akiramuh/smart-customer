@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Python Computer Vision
+computer_vision/.venv/
+**/__pycache__/
+*.py[cod]
