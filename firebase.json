@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "flutter": {
     "platforms": {
@@ -20,3 +21,6 @@
     }
   }
 }
+=======
+{"flutter":{"platforms":{"android":{"default":{"projectId":"smartcustomercounter","appId":"1:98774674319:android:21884c4545bb01c74979fa","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"smartcustomercounter","configurations":{"android":"1:98774674319:android:21884c4545bb01c74979fa","ios":"1:98774674319:ios:d74744eaaedf0ed44979fa","macos":"1:98774674319:ios:d74744eaaedf0ed44979fa","web":"1:98774674319:web:0c2605c7cf2ec2e74979fa","windows":"1:98774674319:web:123e0650b8623f294979fa"}}}}}}
+>>>>>>> 930ee22f3b962c994bcb96048bd244d2e08ef806

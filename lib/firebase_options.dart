@@ -18,6 +18,7 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
 <<<<<<< HEAD
+<<<<<<< HEAD
       throw UnsupportedError(
         'DefaultFirebaseOptions have not been configured for web - '
         'you can reconfigure this by running the FlutterFire CLI again.',
@@ -25,25 +26,19 @@ class DefaultFirebaseOptions {
 =======
       return web;
 >>>>>>> b7d000c (Connect firebase)
+=======
+      return web;
+>>>>>>> 930ee22f3b962c994bcb96048bd244d2e08ef806
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -57,11 +52,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDIY-r02tyNhQWIx6ENmzGoQLFY1BjuyeQ',
-    appId: '1:260673674096:android:74d04ecdca3ebadd0dcdb5',
-    messagingSenderId: '260673674096',
-    projectId: 'smart-customer-ecc66',
-    storageBucket: 'smart-customer-ecc66.firebasestorage.app',
+    apiKey: 'AIzaSyA_OTb5TkFTr0kAdHvaGBO7T7kovMjM3OE',
+    appId: '1:98774674319:android:21884c4545bb01c74979fa',
+    messagingSenderId: '98774674319',
+    projectId: 'smartcustomercounter',
+    storageBucket: 'smartcustomercounter.firebasestorage.app',
+  );
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCKA0Zv_FMZFvP8psPtbWr6F9ony5Fy0w0',
+    appId: '1:98774674319:web:0c2605c7cf2ec2e74979fa',
+    messagingSenderId: '98774674319',
+    projectId: 'smartcustomercounter',
+    authDomain: 'smartcustomercounter.firebaseapp.com',
+    storageBucket: 'smartcustomercounter.firebasestorage.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBOqGalN8SzkoUADEm0Lw4embZflu-8Ass',
+    appId: '1:98774674319:ios:d74744eaaedf0ed44979fa',
+    messagingSenderId: '98774674319',
+    projectId: 'smartcustomercounter',
+    storageBucket: 'smartcustomercounter.firebasestorage.app',
+    iosBundleId: 'com.example.smartCustomerFlutter',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBOqGalN8SzkoUADEm0Lw4embZflu-8Ass',
+    appId: '1:98774674319:ios:d74744eaaedf0ed44979fa',
+    messagingSenderId: '98774674319',
+    projectId: 'smartcustomercounter',
+    storageBucket: 'smartcustomercounter.firebasestorage.app',
+    iosBundleId: 'com.example.smartCustomerFlutter',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCKA0Zv_FMZFvP8psPtbWr6F9ony5Fy0w0',
+    appId: '1:98774674319:web:123e0650b8623f294979fa',
+    messagingSenderId: '98774674319',
+    projectId: 'smartcustomercounter',
+    authDomain: 'smartcustomercounter.firebaseapp.com',
+    storageBucket: 'smartcustomercounter.firebasestorage.app',
   );
 <<<<<<< HEAD
 =======

@@ -5,6 +5,7 @@ import 'package:smart_customer_flutter/models/customer_stats.dart';
 import 'package:smart_customer_flutter/screens/settings_page.dart';
 
 void main() {
+<<<<<<< HEAD
   group('CustomerStats', () {
     test('densityStatus sesuai jumlah pengunjung', () {
       CustomerStats s(int n) => CustomerStats(
@@ -12,6 +13,11 @@ void main() {
             totalEntry: 0,
             totalExit: 0,
           );
+=======
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const SmartCustomerApp());
+>>>>>>> 930ee22f3b962c994bcb96048bd244d2e08ef806
 
       expect(s(0).densityStatus, 'SEPI');
       expect(s(10).densityStatus, 'SEPI');

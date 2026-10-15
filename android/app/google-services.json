@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "260673674096",
-    "project_id": "smart-customer-ecc66",
-    "storage_bucket": "smart-customer-ecc66.firebasestorage.app"
+    "project_number": "98774674319",
+    "project_id": "smartcustomercounter",
+    "storage_bucket": "smartcustomercounter.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:260673674096:android:74d04ecdca3ebadd0dcdb5",
+        "mobilesdk_app_id": "1:98774674319:android:21884c4545bb01c74979fa",
         "android_client_info": {
           "package_name": "com.example.smart_customer_flutter"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDIY-r02tyNhQWIx6ENmzGoQLFY1BjuyeQ"
+          "current_key": "AIzaSyA_OTb5TkFTr0kAdHvaGBO7T7kovMjM3OE"
         }
       ],
       "services": {
