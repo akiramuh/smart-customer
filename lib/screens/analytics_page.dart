@@ -7,7 +7,8 @@ import '../widgets/info_card.dart';
 class AnalyticsPage extends StatelessWidget {
   const AnalyticsPage({super.key});
 
-  static final ApiService _apiService = ApiService();
+  static final Stream<AnalyticsSummary> _summaryStream =
+      ApiService().watchAnalyticsSummary();
 
   @override
   Widget build(BuildContext context) {
@@ -16,18 +17,33 @@ class AnalyticsPage extends StatelessWidget {
         title: const Text('Analitik'),
         backgroundColor: Colors.white,
       ),
-      body: FutureBuilder<AnalyticsSummary>(
-        future: _apiService.fetchAnalyticsSummary(),
+      body: StreamBuilder<AnalyticsSummary>(
+        stream: _summaryStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError || !snapshot.hasData) {
-            return const Center(child: Text('Gagal memuat data analitik.'));
+          if (snapshot.hasError) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Gagal memuat analitik dari Firestore. Periksa koneksi dan izin akses.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
           }
 
-          final summary = snapshot.data!;
+          final summary = snapshot.data ??
+              const AnalyticsSummary(
+                averageVisitors: 'Belum ada data',
+                busiestHour: 'Belum ada data',
+                highestDensity: 'Belum ada data',
+                lowestDensity: 'Belum ada data',
+              );
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -38,7 +54,7 @@ class AnalyticsPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Ringkasan data kepadatan pengunjung',
+                'Ringkasan berdasarkan snapshot historis dari Firestore',
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 20),

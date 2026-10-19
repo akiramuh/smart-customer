@@ -51,3 +51,16 @@ app.*.map.json
 computer_vision/.venv/
 **/__pycache__/
 *.py[cod]
+
+# Local secrets/credentials (never commit Firebase service-account keys)
+*service-account*.json
+*serviceAccount*.json
+serviceAccountKey.json
+.env
+.env.*
+!.env.example
+
+# Python virtual environments and caches
+computer_vision/.venv/
+**/__pycache__/
+*.py[cod]

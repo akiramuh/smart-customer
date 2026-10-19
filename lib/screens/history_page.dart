@@ -6,7 +6,8 @@ import '../services/api_service.dart';
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
-  static final ApiService _apiService = ApiService();
+  static final Stream<List<CustomerEvent>> _historyStream =
+      ApiService().watchHistory();
 
   Color _statusColor(String status) {
     switch (status) {
@@ -28,18 +29,38 @@ class HistoryPage extends StatelessWidget {
         title: const Text('Riwayat'),
         backgroundColor: Colors.white,
       ),
-      body: FutureBuilder<List<CustomerEvent>>(
-        future: _apiService.fetchHistory(),
+      body: StreamBuilder<List<CustomerEvent>>(
+        stream: _historyStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError || !snapshot.hasData) {
-            return const Center(child: Text('Gagal memuat riwayat.'));
+          if (snapshot.hasError) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Gagal memuat riwayat dari Firestore. Periksa koneksi dan izin akses.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
           }
 
-          final history = snapshot.data!;
+          final history = snapshot.data ?? const <CustomerEvent>[];
+          if (history.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Belum ada snapshot riwayat. Data akan muncul setelah Computer Vision menyimpan snapshot berikutnya.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
