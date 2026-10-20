@@ -8,6 +8,8 @@ import 'screens/dashboard_page.dart';
 import 'screens/history_page.dart';
 import 'screens/main_navigation.dart';
 import 'screens/settings_page.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'services/notification_service.dart';
 
 
 Future<void> main() async {
@@ -16,6 +18,12 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  FirebaseMessaging.onBackgroundMessage(
+  firebaseMessagingBackgroundHandler,
+  );
+
+  await NotificationService.initialize();
 
   runApp(const SmartCustomerApp());
 }
