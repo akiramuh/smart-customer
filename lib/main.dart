@@ -9,6 +9,7 @@ import 'screens/history_page.dart';
 import 'screens/main_navigation.dart';
 import 'screens/settings_page.dart';
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -18,6 +19,7 @@ Future<void> main() async {
 
   runApp(const SmartCustomerApp());
 }
+
 
 class SmartCustomerApp extends StatelessWidget {
   const SmartCustomerApp({super.key});
