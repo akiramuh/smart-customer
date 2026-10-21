@@ -19,9 +19,8 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // FCM dan notifikasi lokal hanya diinisialisasi di Android.
-  if (!kIsWeb &&
-      defaultTargetPlatform == TargetPlatform.android) {
+  // FCM and local notifications are initialized only on Android.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     FirebaseMessaging.onBackgroundMessage(
       firebaseMessagingBackgroundHandler,
     );
@@ -29,10 +28,10 @@ Future<void> main() async {
     try {
       await NotificationService.initialize();
     } catch (error, stackTrace) {
-      debugPrint(
-        'Inisialisasi notifikasi Android gagal: $error',
-      );
+      debugPrint('Inisialisasi notifikasi Android gagal: $error');
       debugPrintStack(stackTrace: stackTrace);
+      // Do not prevent the rest of Smart Customer from starting if notifications
+      // cannot initialize (e.g. permission or FCM configuration issue).
     }
   }
 

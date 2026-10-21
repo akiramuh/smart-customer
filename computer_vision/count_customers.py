@@ -21,7 +21,7 @@ from typing import Any
 
 import cv2
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, messaging
 from ultralytics import YOLO
 
 
@@ -57,6 +57,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-capacity", type=int, default=40,
         help="Store capacity used by the dashboard (default: 40).",
+    )
+    parser.add_argument(
+        "--alert-threshold", type=int, default=5,
+        help="Send an FCM alert when estimated occupancy crosses this threshold (default: 5).",
     )
     parser.add_argument(
         "--publish-seconds", type=float, default=15.0,
@@ -179,6 +183,39 @@ class FirestorePublisher:
             self.last_snapshot_at = now
 
 
+FCM_ALERT_TOPIC = "smart_customer_alerts"
+FCM_NOTIFICATION_CHANNEL = "smart_customer_alerts"
+
+
+def send_crowd_alert(current_inside: int, threshold: int, camera_id: str) -> str:
+    """Send a crowd alert to Android devices subscribed to the FCM topic."""
+    message = messaging.Message(
+        notification=messaging.Notification(
+            title="Smart Customer - Minimarket Ramai",
+            body=(
+                f"Jumlah pengunjung di dalam minimarket sudah mencapai "
+                f"{current_inside} orang (ambang ramai: {threshold})."
+            ),
+        ),
+        data={
+            "event": "crowd_threshold_reached",
+            "cameraId": camera_id,
+            "jumlahDiDalam": str(current_inside),
+            "alertThreshold": str(threshold),
+        },
+        android=messaging.AndroidConfig(
+            priority="high",
+            notification=messaging.AndroidNotification(
+                channel_id=FCM_NOTIFICATION_CHANNEL,
+                sound="default",
+                tag="smart_customer_crowd_alert",
+            ),
+        ),
+        topic=FCM_ALERT_TOPIC,
+    )
+    return messaging.send(message)
+
+
 def open_camera(index: int):
     # DirectShow tends to be more reliable on Windows; fall back to OpenCV default.
     if hasattr(cv2, "CAP_DSHOW") and os.name == "nt":
@@ -197,6 +234,8 @@ def main() -> None:
         raise SystemExit("--line-ratio must be between 0.05 and 0.95.")
     if args.max_capacity < 1:
         raise SystemExit("--max-capacity must be at least 1.")
+    if args.alert_threshold < 1:
+        raise SystemExit("--alert-threshold must be at least 1.")
     if args.publish_seconds < 5:
         raise SystemExit("--publish-seconds must be at least 5 to avoid excessive database writes.")
     if args.snapshot_seconds < 30:
@@ -226,7 +265,13 @@ def main() -> None:
         )
 
     previous_centers: dict[int, int] = {}
+    # Only alert on an observed crossing from below the threshold to at/above it.
+    # If the script starts with occupancy already above the threshold, it will not
+    # send a duplicate alert until occupancy falls below and crosses again.
+    alert_pending = False
+    last_alert_attempt = 0.0
     print("Customer counting and Firestore publishing started.")
+    print(f"Crowd alert threshold: {args.alert_threshold} people; FCM topic: {FCM_ALERT_TOPIC}")
     if args.preview:
         print("Preview/debug mode enabled. Press Q or Esc to stop.")
     else:
@@ -268,15 +313,20 @@ def main() -> None:
                     old_y = previous_centers.get(track_id)
 
                     if old_y is not None and old_y < line_y <= center_y:
+                        previous_inside = current_inside
                         entries += 1
                         current_inside += 1
                         count_changed = True
                         print(f"ENTRY +1 | entries={entries}, exits={exits}, inside={current_inside}")
+                        if previous_inside < args.alert_threshold <= current_inside:
+                            alert_pending = True
                     elif old_y is not None and old_y > line_y >= center_y:
                         exits += 1
                         current_inside = max(0, current_inside - 1)
                         count_changed = True
                         print(f"EXIT -1 | entries={entries}, exits={exits}, inside={current_inside}")
+                        if current_inside < args.alert_threshold:
+                            alert_pending = False
 
                     previous_centers[track_id] = center_y
 
@@ -289,6 +339,27 @@ def main() -> None:
                         )
 
             now = time.monotonic()
+            if (
+                alert_pending
+                and current_inside >= args.alert_threshold
+                and now - last_alert_attempt >= 10.0
+            ):
+                last_alert_attempt = now
+                try:
+                    message_id = send_crowd_alert(
+                        current_inside,
+                        args.alert_threshold,
+                        args.camera_id.strip(),
+                    )
+                    print(
+                        f"FCM crowd alert sent to topic '{FCM_ALERT_TOPIC}': {message_id}"
+                    )
+                    alert_pending = False
+                except Exception as exc:  # noqa: BLE001 - retry after a short delay.
+                    print(
+                        f"FCM alert send failed; will retry: {exc}",
+                        file=sys.stderr,
+                    )
             today = local_date_key()
             if today != active_date:
                 active_date = today

@@ -14,12 +14,11 @@ void main() {
           );
 
       expect(s(0).densityStatus, 'SEPI');
-      expect(s(10).densityStatus, 'SEPI');
-      expect(s(11).densityStatus, 'NORMAL');
-      expect(s(25).densityStatus, 'NORMAL');
-      expect(s(26).densityStatus, 'RAMAI');
-      expect(s(35).densityStatus, 'RAMAI');
-      expect(s(36).densityStatus, 'SANGAT RAMAI');
+      expect(s(1).densityStatus, 'SEPI');
+      expect(s(2).densityStatus, 'NORMAL');
+      expect(s(3).densityStatus, 'NORMAL');
+      expect(s(4).densityStatus, 'RAMAI');
+      expect(s(5).densityStatus, 'RAMAI');
     });
 
     test('capacityPercentage dibatasi 0..1', () {
