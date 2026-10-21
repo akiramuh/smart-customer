@@ -1,4 +1,3 @@
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -28,11 +27,21 @@ Future<void> firebaseMessagingBackgroundHandler(
 
 class NotificationService {
   static Future<void> initialize() async {
+    // Notifikasi hanya diaktifkan pada Android.
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      debugPrint(
+        'Notifikasi hanya diaktifkan pada Android.',
+      );
+      return;
+    }
+
     const initializationSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      ),
     );
 
-    // Gunakan named parameter: settings
     await localNotifications.initialize(
       settings: initializationSettings,
     );
@@ -50,33 +59,38 @@ class NotificationService {
     );
 
     debugPrint(
-      'Status izin notifikasi: ${settings.authorizationStatus}',
+      'Status izin notifikasi: '
+      '${settings.authorizationStatus}',
     );
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      final notification = message.notification;
+    FirebaseMessaging.onMessage.listen(
+      (RemoteMessage message) async {
+        final notification = message.notification;
 
-      if (notification == null) return;
+        if (notification == null) return;
 
-      // Gunakan named parameters untuk menampilkan notifikasi.
-      await localNotifications.show(
-        id: notification.hashCode,
-        title: notification.title ?? 'Smart Customer',
-        body: notification.body ?? '',
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'smart_customer_alerts',
-            'Notifikasi Smart Customer',
-            channelDescription:
-                'Notifikasi dari aplikasi Smart Customer.',
-            importance: Importance.max,
-            priority: Priority.high,
+        await localNotifications.show(
+          id: notification.hashCode,
+          title: notification.title ?? 'Smart Customer',
+          body: notification.body ?? '',
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'smart_customer_alerts',
+              'Notifikasi Smart Customer',
+              channelDescription:
+                  'Notifikasi dari aplikasi Smart Customer.',
+              importance: Importance.max,
+              priority: Priority.high,
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     final token = await FirebaseMessaging.instance.getToken();
-    debugPrint('FCM TOKEN: $token');
+
+    if (kDebugMode && token != null) {
+      debugPrint('FCM TOKEN: $token');
+    }
   }
 }

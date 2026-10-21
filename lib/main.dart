@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth/auth_gate.dart';
@@ -8,9 +10,7 @@ import 'screens/dashboard_page.dart';
 import 'screens/history_page.dart';
 import 'screens/main_navigation.dart';
 import 'screens/settings_page.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/notification_service.dart';
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,15 +19,25 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  FirebaseMessaging.onBackgroundMessage(
-  firebaseMessagingBackgroundHandler,
-  );
+  // FCM dan notifikasi lokal hanya diinisialisasi di Android.
+  if (!kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android) {
+    FirebaseMessaging.onBackgroundMessage(
+      firebaseMessagingBackgroundHandler,
+    );
 
-  await NotificationService.initialize();
+    try {
+      await NotificationService.initialize();
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Inisialisasi notifikasi Android gagal: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
 
   runApp(const SmartCustomerApp());
 }
-
 
 class SmartCustomerApp extends StatelessWidget {
   const SmartCustomerApp({super.key});

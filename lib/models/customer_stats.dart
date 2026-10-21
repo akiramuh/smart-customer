@@ -37,9 +37,9 @@ class CustomerStats {
   bool isSensorActive(DateTime now) => sensorOnline && !isStale(now);
 
   String get densityStatus {
-    if (currentVisitors <= 10) return 'SEPI';
-    if (currentVisitors <= 25) return 'NORMAL';
-    if (currentVisitors <= 35) return 'RAMAI';
+    if (currentVisitors <= 1) return 'SEPI';
+    if (currentVisitors <= 3) return 'NORMAL';
+    if (currentVisitors <= 5) return 'RAMAI';
     return 'SANGAT RAMAI';
   }
 
