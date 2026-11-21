@@ -30,8 +30,6 @@ Future<void> main() async {
     } catch (error, stackTrace) {
       debugPrint('Inisialisasi notifikasi Android gagal: $error');
       debugPrintStack(stackTrace: stackTrace);
-      // Do not prevent the rest of Smart Customer from starting if notifications
-      // cannot initialize (e.g. permission or FCM configuration issue).
     }
   }
 
@@ -45,15 +43,55 @@ class SmartCustomerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF175CD3);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Smart Customer',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
+          seedColor: primary,
+          brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: const Color(0xFFF4F7FB),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF4F7FB),
+          foregroundColor: Color(0xFF172B4D),
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Color(0xFF172B4D),
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xFFE7ECF3)),
+          ),
+        ),
+        dividerColor: const Color(0xFFE7ECF3),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFD9E1EC)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFD9E1EC)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: primary, width: 1.5),
+          ),
+        ),
       ),
       routes: {
         '/': (_) => _protected(const MainNavigation()),

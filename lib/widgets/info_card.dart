@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
 class InfoCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
   const InfoCard({
     super.key,
     required this.title,
@@ -12,20 +8,54 @@ class InfoCard extends StatelessWidget {
     required this.icon,
   });
 
+  final String title;
+  final String value;
+  final IconData icon;
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE3F2FD),
-          child: Icon(icon, color: const Color(0xFF1565C0)),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(value),
+    return Container(
+      constraints: const BoxConstraints(minHeight: 158),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE7ECF3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF4FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF175CD3)),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF667085),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF172B4D),
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

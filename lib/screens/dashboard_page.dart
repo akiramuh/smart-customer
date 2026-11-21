@@ -19,35 +19,46 @@ class _DashboardPageState extends State<DashboardPage> {
   late final Stream<CustomerStats> _statsStream =
       RealtimeService().watchStats();
 
-  static const _textDark = Color(0xFF152033);
-  static const _muted = Color(0xFF657184);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Smart Customer',
               style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: _textDark,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
               ),
             ),
             Text(
               'Monitoring Minimarket',
-              style: TextStyle(fontSize: 12, color: _muted),
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF667085),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
-        actions: const [
-          IconButton(
-            onPressed: null,
-            icon: Icon(Icons.notifications_none, color: _textDark),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF4FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.storefront_rounded,
+                color: Color(0xFF175CD3),
+                size: 20,
+              ),
+            ),
           ),
         ],
       ),
@@ -60,20 +71,26 @@ class _DashboardPageState extends State<DashboardPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Gagal mengambil data: ${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
+            if (snapshot.data != null) {
+              return _DashboardContent(
+                stats: snapshot.data!,
+                connectionError: true,
+              );
+            }
+            return const _DashboardMessage(
+              icon: Icons.cloud_off_outlined,
+              title: 'Data tidak dapat dimuat',
+              message:
+                  'Periksa koneksi internet, izin Firestore, lalu coba kembali.',
             );
           }
 
           if (!snapshot.hasData) {
-            return const Center(
-              child: Text(
-                'Belum ada data pengunjung dari Firestore.',
-                textAlign: TextAlign.center,
-              ),
+            return const _DashboardMessage(
+              icon: Icons.hourglass_empty_rounded,
+              title: 'Menunggu data pengunjung',
+              message:
+                  'Data akan muncul setelah program Computer Vision mulai mengirimkan pembaruan.',
             );
           }
 
@@ -85,24 +102,26 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class _DashboardContent extends StatefulWidget {
-  final CustomerStats stats;
+  const _DashboardContent({
+    required this.stats,
+    this.connectionError = false,
+  });
 
-  const _DashboardContent({required this.stats});
+  final CustomerStats stats;
+  final bool connectionError;
 
   @override
   State<_DashboardContent> createState() => _DashboardContentState();
 }
 
 class _DashboardContentState extends State<_DashboardContent> {
-  // Firestore hanya mengirim event saat data berubah, jadi tanpa timer
-  // status "data basi" tidak akan pernah muncul ketika ESP32 mati.
   Timer? _ticker;
   DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
+    _ticker = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
   }
@@ -113,22 +132,24 @@ class _DashboardContentState extends State<_DashboardContent> {
     super.dispose();
   }
 
-  String _formatTime(DateTime t) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+  String _formatTime(DateTime time) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
   }
 
   String _lastUpdateText(CustomerStats stats) {
     final updated = stats.lastUpdated;
-    if (updated == null) return 'Tidak ada data';
+    if (updated == null) return 'Belum pernah diperbarui';
 
-    final diff = _now.difference(updated);
-    if (diff.inSeconds < 60) return '${_formatTime(updated)} (baru saja)';
-    if (diff.inMinutes < 60) {
-      return '${_formatTime(updated)} (${diff.inMinutes} mnt lalu)';
+    final difference = _now.difference(updated);
+    if (difference.isNegative || difference.inSeconds < 60) {
+      return '${_formatTime(updated)} (baru saja)';
     }
-    if (diff.inHours < 24) {
-      return '${_formatTime(updated)} (${diff.inHours} jam lalu)';
+    if (difference.inMinutes < 60) {
+      return '${_formatTime(updated)} (${difference.inMinutes} menit lalu)';
+    }
+    if (difference.inHours < 24) {
+      return '${_formatTime(updated)} (${difference.inHours} jam lalu)';
     }
     return '${updated.day}/${updated.month}/${updated.year} ${_formatTime(updated)}';
   }
@@ -136,302 +157,575 @@ class _DashboardContentState extends State<_DashboardContent> {
   @override
   Widget build(BuildContext context) {
     final stats = widget.stats;
-    final sensorActive = stats.isSensorActive(_now);
     final stale = stats.isStale(_now);
-    final live = !stats.fromCache && sensorActive;
+    final cameraCvOnline = stats.isCameraCvOnline(_now);
     final capacity = stats.maxCapacity;
-    final capacityText = '${(stats.capacityPercentage * 100).round()}%';
+    final live = !widget.connectionError &&
+        !stats.fromCache &&
+        cameraCvOnline;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Dashboard',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF152033),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Pemantauan kepadatan pengunjung secara real-time',
-            style: TextStyle(color: Color(0xFF657184), fontSize: 14),
-          ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1565C0),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final connectionStatus = widget.connectionError
+        ? 'Error'
+        : stats.fromCache
+            ? 'Cache'
+            : 'Live';
+    final connectionColor = widget.connectionError
+        ? const Color(0xFFB42318)
+        : stats.fromCache
+            ? const Color(0xFFB54708)
+            : const Color(0xFF15803D);
+
+    final cameraCvStatus = stats.lastUpdated == null
+        ? 'Belum ada data'
+        : cameraCvOnline
+            ? 'Online'
+            : 'Offline';
+    final cameraCvColor = stats.lastUpdated == null
+        ? const Color(0xFF667085)
+        : cameraCvOnline
+            ? const Color(0xFF15803D)
+            : const Color(0xFFB42318);
+
+    final dashboardStatus = widget.connectionError
+        ? 'ERROR DATA'
+        : stats.fromCache
+            ? 'CACHE'
+            : stats.lastUpdated == null
+                ? 'MENUNGGU DATA'
+                : cameraCvOnline
+                    ? 'LIVE'
+                    : 'CV OFFLINE';
+
+    final dashboardStatusColor = live
+        ? const Color(0xFF86EFAC)
+        : stats.fromCache
+            ? const Color(0xFFFCD34D)
+            : const Color(0xFFFCA5A5);
+
+    final updateColor = stats.lastUpdated == null
+        ? const Color(0xFF667085)
+        : stale
+            ? const Color(0xFFB54708)
+            : const Color(0xFF175CD3);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = constraints.maxWidth >= 1000
+            ? 32.0
+            : constraints.maxWidth >= 600
+                ? 24.0
+                : 16.0;
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1220),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                24,
+                horizontalPadding,
+                32,
+              ),
               children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'MONITORING REAL-TIME',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                const _PageHeading(
+                  title: 'Dashboard',
+                  subtitle:
+                      'Pantau kondisi dan pergerakan pengunjung minimarket.',
+                ),
+                const SizedBox(height: 22),
+                _OccupancyCard(
+                  stats: stats,
+                  status: dashboardStatus,
+                  statusColor: dashboardStatusColor,
+                ),
+                const SizedBox(height: 18),
+                LayoutBuilder(
+                  builder: (context, metricConstraints) {
+                    final columns =
+                        metricConstraints.maxWidth >= 740 ? 3 : 2;
+                    return GridView.count(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: ((metricConstraints.maxWidth - 12 * (columns - 1)) / columns) / 152,
+                      children: [
+                        StatCard(
+                          icon: Icons.login_rounded,
+                          title: 'Masuk Hari Ini',
+                          value: '${stats.totalEntry}',
+                          iconColor: const Color(0xFF175CD3),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        StatCard(
+                          icon: Icons.logout_rounded,
+                          title: 'Keluar Hari Ini',
+                          value: '${stats.totalExit}',
+                          iconColor: const Color(0xFF0E9384),
+                        ),
+                        StatCard(
+                          icon: Icons.groups_2_rounded,
+                          title: 'Kapasitas Maksimal',
+                          value: '$capacity orang',
+                          iconColor: const Color(0xFF7A5AF8),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                const _SectionHeading(
+                  title: 'Tren Pengunjung',
+                  subtitle: 'Perubahan jumlah pengunjung dari snapshot historis.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                  decoration: _panelDecoration(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Icon(
-                            Icons.circle,
-                            color: live ? Colors.greenAccent : Colors.redAccent,
-                            size: 9,
+                          const Expanded(
+                            child: Text(
+                              'Jumlah pengunjung',
+                              style: TextStyle(
+                                color: Color(0xFF344054),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 5),
-                          Text(
-                            live ? 'LIVE' : (stale ? 'TERTUNDA' : 'OFFLINE'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF2F4F7),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              '24 data terakhir',
+                              style: TextStyle(
+                                color: Color(0xFF667085),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Pengunjung Saat Ini',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '${stats.currentVisitors}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 64,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        'orang',
-                        style: TextStyle(color: Colors.white70, fontSize: 18),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: stats.capacityPercentage,
-                    minHeight: 10,
-                    backgroundColor: Colors.white30,
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Kapasitas maksimal $capacity orang',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      capacityText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  decoration: BoxDecoration(
-                    color: stats.densityColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Status: ${stats.densityStatus}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 190,
+                        child: CustomerChart(
+                          maxValue: capacity > 0 ? capacity.toDouble() : 40,
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+                const _SectionHeading(
+                  title: 'Status Sistem',
+                  subtitle: 'Kondisi koneksi data dan proses pemantauan.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: _panelDecoration(),
+                  child: Column(
+                    children: [
+                      StatusItem(
+                        label: 'Koneksi Data',
+                        value: connectionStatus,
+                        color: connectionColor,
+                      ),
+                      const Divider(height: 18),
+                      StatusItem(
+                        label: 'Kamera & Computer Vision',
+                        value: cameraCvStatus,
+                        color: cameraCvColor,
+                      ),
+                      const Divider(height: 18),
+                      StatusItem(
+                        label: 'Update Terakhir',
+                        value: _lastUpdateText(stats),
+                        color: updateColor,
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.connectionError) ...[
+                  const SizedBox(height: 12),
+                  const _InlineNotice(
+                    icon: Icons.info_outline,
+                    message:
+                        'Koneksi ke Firestore mengalami gangguan. Informasi yang terlihat mungkin merupakan data terakhir yang berhasil diterima.',
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
+        );
+      },
+    );
+  }
+}
+
+class _OccupancyCard extends StatelessWidget {
+  const _OccupancyCard({
+    required this.stats,
+    required this.status,
+    required this.statusColor,
+  });
+
+  final CustomerStats stats;
+  final String status;
+  final Color statusColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1849A9), Color(0xFF175CD3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF175CD3).withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: StatCard(
-                  icon: Icons.login,
-                  title: 'Masuk Hari Ini',
-                  value: '${stats.totalEntry}',
+              const Text(
+                'PENGUNJUNG DI DALAM TOKO',
+                style: TextStyle(
+                  color: Color(0xFFD1E0FF),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: StatCard(
-                  icon: Icons.logout,
-                  title: 'Keluar Hari Ini',
-                  value: '${stats.totalExit}',
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${stats.currentVisitors}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 64,
+                          height: 0.95,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 10, bottom: 7),
+                    child: Text(
+                      'orang',
+                      style: TextStyle(
+                        color: Color(0xFFD1E0FF),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: stats.densityColor,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  'Kepadatan: ${stats.densityStatus}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          final capacity = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Status pemantauan',
+                    style: TextStyle(
+                      color: Color(0xFFD1E0FF),
+                      fontSize: 12,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 8, color: statusColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        status,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Penggunaan kapasitas',
+                style: TextStyle(
+                  color: Color(0xFFD1E0FF),
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: LinearProgressIndicator(
+                  value: stats.capacityPercentage,
+                  minHeight: 10,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${(stats.capacityPercentage * 100).round()}% terisi',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'Kapasitas ${stats.maxCapacity}',
+                    style: const TextStyle(
+                      color: Color(0xFFD1E0FF),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (constraints.maxWidth >= 620) {
+            return Row(
+              children: [
+                Expanded(flex: 5, child: details),
+                const SizedBox(width: 32),
+                Expanded(flex: 4, child: capacity),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              details,
+              const SizedBox(height: 24),
+              capacity,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PageHeading extends StatelessWidget {
+  const _PageHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF172B4D),
+            fontWeight: FontWeight.w800,
+            fontSize: 28,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF172B4D),
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardMessage extends StatelessWidget {
+  const _DashboardMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 48, color: const Color(0xFF98A2B3)),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF172B4D),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF667085),
+                  height: 1.5,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: StatCard(
-                  icon: Icons.groups,
-                  title: 'Kapasitas',
-                  value: '$capacity',
-                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineNotice extends StatelessWidget {
+  const _InlineNotice({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFAEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFEDF89)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFFB54708), size: 19),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF93370D),
+                fontSize: 12,
+                height: 1.45,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: StatCard(
-                  icon: Icons.sensors,
-                  title: 'Sensor',
-                  value: sensorActive ? 'Online' : 'Offline',
-                  valueColor: sensorActive ? Colors.green : Colors.red,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tren Pengunjung',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Data pengunjung beberapa jam terakhir',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF657184)),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  height: 180,
-                  child: CustomerChart(maxValue: capacity.toDouble()),
-                ),
-              ],
             ),
           ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Status Sistem',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 15),
-                StatusItem(
-                  label: 'Internet',
-                  value: stats.fromCache ? 'Tidak terhubung' : 'Terhubung',
-                  color: stats.fromCache ? Colors.red : Colors.green,
-                ),
-                StatusItem(
-                  label: 'ESP32',
-                  value: stale ? 'Tidak merespons' : 'Online',
-                  color: stale ? Colors.red : Colors.green,
-                ),
-                StatusItem(
-                  label: 'Sensor',
-                  value: sensorActive ? 'Aktif' : 'Nonaktif',
-                  color: sensorActive ? Colors.green : Colors.red,
-                ),
-                StatusItem(
-                  label: 'Update terakhir',
-                  value: _lastUpdateText(stats),
-                  color: stale ? Colors.orange : Colors.blue,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
+}
+
+BoxDecoration _panelDecoration() {
+  return BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(color: const Color(0xFFE7ECF3)),
+  );
 }

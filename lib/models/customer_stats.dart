@@ -5,53 +5,62 @@ class CustomerStats {
   final int totalEntry;
   final int totalExit;
   final int maxCapacity;
-  final bool sensorOnline;
 
-  /// Waktu dokumen terakhir ditulis (dari field `timestamp`), null jika tidak ada.
+  /// Status gabungan kamera dan proses Computer Vision.
+  final bool cameraCvOnline;
+
+  /// Waktu terakhir data dipublikasikan ke Firestore.
   final DateTime? lastUpdated;
 
-  /// True jika data berasal dari cache lokal (tidak terhubung ke server).
+  /// True ketika snapshot dibaca dari cache lokal.
   final bool fromCache;
 
-  /// Batas data dianggap basi: jika lebih lama dari ini, sensor dianggap mati.
-  static const Duration staleAfter = Duration(minutes: 5);
+  /// Heartbeat Python adalah 15 detik; data dianggap basi setelah 60 detik.
+  static const Duration staleAfter = Duration(seconds: 60);
 
   const CustomerStats({
     required this.currentVisitors,
     required this.totalEntry,
     required this.totalExit,
     this.maxCapacity = 40,
-    this.sensorOnline = true,
+    bool? cameraCvOnline,
+    bool? sensorOnline,
     this.lastUpdated,
     this.fromCache = false,
-  });
+  }) : cameraCvOnline = cameraCvOnline ?? sensorOnline ?? false;
 
-  /// Data dianggap basi jika tidak ada timestamp atau sudah terlalu lama.
   bool isStale(DateTime now) {
     final updated = lastUpdated;
     if (updated == null) return true;
     return now.difference(updated) > staleAfter;
   }
 
-  /// Sensor benar-benar aktif: dilaporkan online DAN datanya masih baru.
-  bool isSensorActive(DateTime now) => sensorOnline && !isStale(now);
+  bool isCameraCvOnline(DateTime now) {
+    return cameraCvOnline && !isStale(now);
+  }
+
+  @Deprecated('Gunakan cameraCvOnline')
+  bool get sensorOnline => cameraCvOnline;
+
+  @Deprecated('Gunakan isCameraCvOnline')
+  bool isSensorActive(DateTime now) => isCameraCvOnline(now);
 
   String get densityStatus {
-  if (currentVisitors <= 1) return 'SEPI';
-  if (currentVisitors <= 3) return 'NORMAL';
-  return 'RAMAI';
+    if (currentVisitors <= 1) return 'SEPI';
+    if (currentVisitors <= 3) return 'NORMAL';
+    return 'RAMAI';
   }
 
   Color get densityColor {
     switch (densityStatus) {
       case 'SEPI':
-        return Colors.green;
+        return const Color(0xFF15803D);
       case 'NORMAL':
-        return Colors.blue;
+        return const Color(0xFF175CD3);
       case 'RAMAI':
-        return Colors.orange;
+        return const Color(0xFFB54708);
       default:
-        return Colors.red;
+        return const Color(0xFFB42318);
     }
   }
 
@@ -65,6 +74,7 @@ class CustomerStats {
     int? totalEntry,
     int? totalExit,
     int? maxCapacity,
+    bool? cameraCvOnline,
     bool? sensorOnline,
     DateTime? lastUpdated,
     bool? fromCache,
@@ -74,7 +84,8 @@ class CustomerStats {
       totalEntry: totalEntry ?? this.totalEntry,
       totalExit: totalExit ?? this.totalExit,
       maxCapacity: maxCapacity ?? this.maxCapacity,
-      sensorOnline: sensorOnline ?? this.sensorOnline,
+      cameraCvOnline:
+          cameraCvOnline ?? sensorOnline ?? this.cameraCvOnline,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       fromCache: fromCache ?? this.fromCache,
     );
