@@ -40,28 +40,28 @@ void main() {
           currentVisitors: 5,
           totalEntry: 10,
           totalExit: 5,
-          sensorOnline: online,
+          cameraCvOnline: online,
           lastUpdated: updated,
         );
 
     test('tanpa timestamp dianggap basi', () {
       expect(stats().isStale(now), isTrue);
-      expect(stats().isSensorActive(now), isFalse);
+      expect(stats().isCameraCvOnline(now), isFalse);
     });
 
     test('data baru dianggap aktif', () {
       final s = stats(updated: now.subtract(const Duration(seconds: 30)));
       expect(s.isStale(now), isFalse);
-      expect(s.isSensorActive(now), isTrue);
+      expect(s.isCameraCvOnline(now), isTrue);
     });
 
     test('data lebih lama dari batas dianggap basi', () {
-      final s = stats(updated: now.subtract(const Duration(minutes: 6)));
+      final s = stats(updated: now.subtract(const Duration(seconds: 61)));
       expect(s.isStale(now), isTrue);
       expect(s.isSensorActive(now), isFalse);
     });
 
-    test('sensorOnline=false tetap nonaktif walau data baru', () {
+    test('cameraCvOnline=false tetap nonaktif walau data baru', () {
       final s = stats(updated: now, online: false);
       expect(s.isSensorActive(now), isFalse);
     });
@@ -70,6 +70,6 @@ void main() {
   testWidgets('SettingsPage menampilkan judul', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: SettingsPage()));
     expect(find.text('Pengaturan'), findsOneWidget);
-    expect(find.text('Profil Admin'), findsOneWidget);
+    expect(find.text('Akun Pengguna'), findsOneWidget);
   });
 }
