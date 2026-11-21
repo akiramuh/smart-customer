@@ -58,12 +58,12 @@ void main() {
     test('data lebih lama dari batas dianggap basi', () {
       final s = stats(updated: now.subtract(const Duration(seconds: 61)));
       expect(s.isStale(now), isTrue);
-      expect(s.isSensorActive(now), isFalse);
+      expect(s.isCameraCvOnline(now), isFalse);
     });
 
     test('cameraCvOnline=false tetap nonaktif walau data baru', () {
       final s = stats(updated: now, online: false);
-      expect(s.isSensorActive(now), isFalse);
+      expect(s.isCameraCvOnline(now), isFalse);
     });
   });
 
