@@ -71,5 +71,6 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SettingsPage()));
     expect(find.text('Pengaturan'), findsOneWidget);
     expect(find.text('Akun Pengguna'), findsOneWidget);
+    expect(find.textContaining('ESP32'), findsNothing);
   });
 }
