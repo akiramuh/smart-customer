@@ -15,7 +15,7 @@ class InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 142),
+      constraints: const BoxConstraints(minHeight: 158),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -24,6 +24,7 @@ class InfoCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
             width: 40,
@@ -34,7 +35,7 @@ class InfoCard extends StatelessWidget {
             ),
             child: Icon(icon, color: const Color(0xFF175CD3)),
           ),
-          const Spacer(),
+          const SizedBox(height: 15),
           Text(
             title,
             style: const TextStyle(
