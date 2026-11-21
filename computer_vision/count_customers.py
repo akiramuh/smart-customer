@@ -153,7 +153,7 @@ class FirestorePublisher:
         exits: int,
         current_inside: int,
         *,
-        sensor_online: bool,
+        camera_cv_online: bool,
         force_snapshot: bool = False,
     ) -> None:
         date_key = local_date_key()
@@ -164,7 +164,9 @@ class FirestorePublisher:
             "totalMasuk": max(0, entries),
             "totalKeluar": max(0, exits),
             "maxCapacity": self.max_capacity,
-            "sensorOnline": sensor_online,
+            "cameraCvOnline": camera_cv_online,
+            # Compatibility for older Flutter builds that still read this key.
+            "sensorOnline": camera_cv_online,
             "updatedBy": "yolo-python",
             "schemaVersion": 1,
             "timestamp": firestore.SERVER_TIMESTAMP,
@@ -257,7 +259,7 @@ def main() -> None:
     if not camera.isOpened():
         camera.release()
         try:
-            publisher.publish(entries, exits, current_inside, sensor_online=False, force_snapshot=True)
+            publisher.publish(entries, exits, current_inside, camera_cv_online=False, force_snapshot=True)
         except Exception as exc:  # noqa: BLE001 - show the Firestore failure before exiting.
             print(f"Could not publish offline state: {exc}", file=sys.stderr)
         raise SystemExit(
@@ -282,7 +284,7 @@ def main() -> None:
     count_changed = False
     try:
         # Publish an initial healthy heartbeat once the camera has opened.
-        publisher.publish(entries, exits, current_inside, sensor_online=True, force_snapshot=True)
+        publisher.publish(entries, exits, current_inside, camera_cv_online=True, force_snapshot=True)
         last_publish = time.monotonic()
 
         while True:
@@ -369,7 +371,7 @@ def main() -> None:
 
             if count_changed or now - last_publish >= args.publish_seconds:
                 try:
-                    publisher.publish(entries, exits, current_inside, sensor_online=True)
+                    publisher.publish(entries, exits, current_inside, camera_cv_online=True)
                     last_publish = now
                     count_changed = False
                 except Exception as exc:  # noqa: BLE001 - retry on the next heartbeat.
@@ -398,7 +400,7 @@ def main() -> None:
         if args.preview:
             cv2.destroyAllWindows()
         try:
-            publisher.publish(entries, exits, current_inside, sensor_online=False, force_snapshot=True)
+            publisher.publish(entries, exits, current_inside, camera_cv_online=False, force_snapshot=True)
         except Exception as exc:  # noqa: BLE001
             print(f"Could not publish final offline state: {exc}", file=sys.stderr)
 
