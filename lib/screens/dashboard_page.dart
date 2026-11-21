@@ -249,7 +249,7 @@ class _DashboardContentState extends State<_DashboardContent> {
                       mainAxisSpacing: 12,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: columns == 3 ? 1.75 : 1.5,
+                      childAspectRatio: ((metricConstraints.maxWidth - 12 * (columns - 1)) / columns) / 152,
                       children: [
                         StatCard(
                           icon: Icons.login_rounded,
