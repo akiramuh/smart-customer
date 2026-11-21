@@ -34,6 +34,10 @@ Melakukan perbaikan antarmuka Smart Customer untuk tugas Pemrograman Berorientas
 - `test/widget_test.dart`: tes status kamera/CV dan halaman Pengaturan diselaraskan.
 - `README.md`: dokumentasi antarmuka dan field status diperbarui.
 
+## Batasan acuan desain
+
+Redesign ini dibuat berdasarkan fitur dan alur yang sudah ada di branch aplikasi. Peta fitur P9 dan hasil studi banding yang disebutkan pada instruksi tugas belum tersedia dalam bahan kerja, sehingga pemetaan terhadap kedua dokumen tersebut masih perlu dilengkapi saat dokumennya tersedia.
+
 ## Pemeriksaan lokal yang wajib dilakukan
 
 Perubahan di branch ini belum dianggap tervalidasi di perangkat sampai langkah berikut dijalankan dari root proyek.
@@ -44,7 +48,7 @@ dart format lib test
 flutter analyze
 flutter test
 flutter build web
-python -m py_compile .\\computer_vision\\count_customers.py
+python -m py_compile .\computer_vision\count_customers.py
 ```
 
 Uji tampilan pada:
