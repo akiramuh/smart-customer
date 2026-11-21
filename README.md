@@ -181,7 +181,7 @@ Dokumen kondisi terkini yang diperbarui secara periodik. Field inti yang digunak
 | `totalMasuk` | integer | Total masuk pada hari lokal yang aktif |
 | `totalKeluar` | integer | Total keluar pada hari lokal yang aktif |
 | `maxCapacity` | integer | Kapasitas maksimal yang dikonfigurasi |
-| `sensorOnline` | boolean | Status loop kamera/CV menurut publisher |
+| `cameraCvOnline` | boolean | Status gabungan kamera dan proses Computer Vision menurut publisher |\n| `sensorOnline` | boolean | Field kompatibilitas sementara untuk aplikasi versi lama |
 | `cameraId` | string | ID logis kamera |
 
 Dokumen kondisi terkini tidak dipakai sebagai titik riwayat agar tidak menghitung sampel terbaru berulang kali.
@@ -224,7 +224,7 @@ Build web lokal menghasilkan file di `build/web`; perintah ini belum memublikasi
 - Simpan agregat pengunjung saja; jangan menulis frame atau video mentah ke Firestore.
 - Uji akses yang ditolak (pengguna tidak login/tidak punya role) sebelum menyatakan keamanan siap produksi.
 
-## Status dan pekerjaan lanjutan
+## Antarmuka aplikasi\n\nAplikasi memakai bottom navigation pada layar ponsel dan navigation rail pada layar lebar. Dashboard menampilkan jumlah pengunjung, masuk/keluar, kapasitas, tren historis, serta tiga status sistem: koneksi data, kamera dan Computer Vision, dan waktu pembaruan terakhir. Riwayat dan Analitik membaca snapshot dari `visitor_activity`. Halaman Pengaturan menampilkan akun Firebase dan informasi sistem tanpa menampilkan perangkat ESP32.\n\n## Status dan pekerjaan lanjutan
 
 Yang telah dilaporkan berhasil diuji dalam lingkungan pengembangan: login admin, penerapan Firestore Rules, pengiriman CV ke Firestore, dashboard real-time saat CV dan browser berjalan bersamaan, halaman Riwayat dan Analitik, `flutter analyze`, tujuh tes Flutter, dan `flutter build web`.
 
