@@ -52,6 +52,9 @@ computer_vision/.venv/
 **/__pycache__/
 *.py[cod]
 
+# YOLO model weights (downloaded automatically on first run)
+computer_vision/*.pt
+
 # Local secrets/credentials (never commit Firebase service-account keys)
 *service-account*.json
 *serviceAccount*.json

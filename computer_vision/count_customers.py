@@ -32,7 +32,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera", type=int, default=0, help="Camera device index (default: 0).")
     parser.add_argument(
         "--model", type=str, default=None,
-        help="Optional YOLO weights path (default: yolo26n.pt beside this script).",
+        help=(
+            "Optional YOLO pose weights path "
+            "(default: yolo26n-pose.pt beside this script). "
+            "Must be a *-pose model to provide head and shoulder keypoints."
+        ),
     )
     parser.add_argument(
         "--confidence", type=float, default=0.35,
@@ -75,6 +79,27 @@ def parse_args() -> argparse.Namespace:
         help="Show local debug video with bounding boxes. Disabled by default.",
     )
     return parser.parse_args()
+
+
+# Ultralytics COCO keypoint indices, in the order emitted by *-pose models.
+KEYPOINT_LEFT_EYE = 1
+KEYPOINT_RIGHT_EYE = 2
+KEYPOINT_LEFT_EAR = 3
+KEYPOINT_RIGHT_EAR = 4
+KEYPOINT_NOSE = 0
+KEYPOINT_LEFT_SHOULDER = 5
+KEYPOINT_RIGHT_SHOULDER = 6
+
+# Head cluster (eyes, ears, nose) plus both shoulders; the skeleton drawn in preview mode.
+HEAD_KEYPOINTS = (
+    KEYPOINT_NOSE,
+    KEYPOINT_LEFT_EYE,
+    KEYPOINT_RIGHT_EYE,
+    KEYPOINT_LEFT_EAR,
+    KEYPOINT_RIGHT_EAR,
+)
+SKELETON_KEYPOINTS = HEAD_KEYPOINTS + (KEYPOINT_LEFT_SHOULDER, KEYPOINT_RIGHT_SHOULDER)
+POSE_SKELETON_COLOR = (50, 210, 90)
 
 
 def local_date_key() -> str:
@@ -183,6 +208,80 @@ class FirestorePublisher:
             self.last_snapshot_at = now
 
 
+class CommandReader:
+    """Reads the commands the Flutter app writes to `visitor_commands/{cameraId}`.
+
+    The app never writes visitor counters directly: it writes *commands*, and this
+    reader applies them to the producer's in-RAM state. Without this indirection the
+    producer would overwrite the app's values on its next publish (every few seconds).
+
+    Recognised fields:
+      maxCapacity     -> store capacity shown on the dashboard
+      alertThreshold  -> occupancy at which an FCM crowd alert is sent
+      resetOccupancyAt-> epoch milliseconds of the latest manual reset request
+    """
+
+    def __init__(self, db: Any, camera_id: str):
+        self.db = db
+        self.camera_id = camera_id
+        self.command_ref = db.collection("visitor_commands").document(camera_id)
+        self.last_reset_key = 0
+        self.last_read_error: str | None = None
+
+    @staticmethod
+    def _to_int(value: Any) -> int | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        return None
+
+    def fetch(self) -> dict[str, Any]:
+        """Return the current command document as a plain dict (empty when absent)."""
+        try:
+            snap = self.command_ref.get()
+        except Exception as exc:  # noqa: BLE001 - a transient read error must not stop counting.
+            self.last_read_error = str(exc)
+            print(f"Could not read visitor commands; will retry: {exc}", file=sys.stderr)
+            return {}
+
+        self.last_read_error = None
+        data = snap.to_dict() or {}
+        return data if isinstance(data, dict) else {}
+
+    def apply(
+        self,
+        data: dict[str, Any],
+        *,
+        max_capacity: int,
+        alert_threshold: int,
+    ) -> tuple[int, int, bool]:
+        """Apply a command document to the running configuration.
+
+        Returns (max_capacity, alert_threshold, reset_requested). The caller keeps the
+        returned values in RAM so the next publish writes them to Firestore.
+        """
+        capacity = self._to_int(data.get("maxCapacity"))
+        if capacity is not None and capacity >= 1:
+            if capacity != max_capacity:
+                print(f"Command applied: max capacity {max_capacity} -> {capacity}")
+            max_capacity = capacity
+
+        threshold = self._to_int(data.get("alertThreshold"))
+        if threshold is not None and threshold >= 1:
+            if threshold != alert_threshold:
+                print(f"Command applied: alert threshold {alert_threshold} -> {threshold}")
+            alert_threshold = threshold
+
+        reset_key = self._to_int(data.get("resetOccupancyAt")) or 0
+        reset_requested = reset_key != self.last_reset_key
+        if reset_requested:
+            self.last_reset_key = reset_key
+            print("Command applied: reset occupancy to 0")
+
+        return max_capacity, alert_threshold, reset_requested
+
+
 FCM_ALERT_TOPIC = "smart_customer_alerts"
 FCM_NOTIFICATION_CHANNEL = "smart_customer_alerts"
 
@@ -226,6 +325,84 @@ def open_camera(index: int):
     return cv2.VideoCapture(index)
 
 
+def draw_head_and_shoulders(frame, keypoints_xy: list[tuple[float, float]], confidence: list[float]):
+    """Draw a head-to-shoulder line and a crossbar between both shoulders.
+
+    ``keypoints_xy`` and ``confidence`` are the per-person keypoints of a single tracked
+    detection, ordered as the model emitted them. Low-confidence points are skipped so a
+    partially detected head does not draw stray lines.
+    """
+    threshold = 0.5
+    points: dict[int, tuple[int, int]] = {}
+    for index in SKELETON_KEYPOINTS:
+        if index >= len(keypoints_xy):
+            continue
+        # An empty confidence list means keypoints.conf was unavailable; trust the points.
+        if confidence and confidence[index] < threshold:
+            continue
+        x, y = keypoints_xy[index]
+        points[index] = (int(x), int(y))
+
+    left_shoulder = points.get(KEYPOINT_LEFT_SHOULDER)
+    right_shoulder = points.get(KEYPOINT_RIGHT_SHOULDER)
+    head_points = [points[index] for index in HEAD_KEYPOINTS if index in points]
+    head_center = None
+    if head_points:
+        head_center = (
+            sum(point[0] for point in head_points) // len(head_points),
+            sum(point[1] for point in head_points) // len(head_points),
+        )
+
+    if left_shoulder is not None and right_shoulder is not None:
+        shoulder_center = (
+            (left_shoulder[0] + right_shoulder[0]) // 2,
+            (left_shoulder[1] + right_shoulder[1]) // 2,
+        )
+        cv2.line(
+            frame, left_shoulder, right_shoulder,
+            POSE_SKELETON_COLOR, 2, cv2.LINE_AA,
+        )
+        if head_center is not None:
+            cv2.line(
+                frame, head_center, shoulder_center,
+                POSE_SKELETON_COLOR, 2, cv2.LINE_AA,
+            )
+
+    # Show only the three representative points, not every face keypoint.
+    for point in (head_center, left_shoulder, right_shoulder):
+        if point is not None:
+            cv2.circle(frame, point, 5, POSE_SKELETON_COLOR, -1, cv2.LINE_AA)
+
+
+def count_anchor_y(keypoints_xy: list[tuple[float, float]], confidence: list[float] | None) -> int | None:
+    """Return the vertical anchor used for crossing checks.
+
+    The anchor is based on the three-person skeleton points (nose + shoulders), but we
+    only accept detections when at least two shoulder keypoints are trusted enough to
+    count. This keeps counting stable even when a bounding box center drifts due to pose
+    changes or partial occlusion.
+    """
+    threshold = 0.5
+    valid_points: list[float] = []
+    shoulder_points = 0
+
+    for index in (KEYPOINT_NOSE, KEYPOINT_LEFT_SHOULDER, KEYPOINT_RIGHT_SHOULDER):
+        if index >= len(keypoints_xy):
+            continue
+        if confidence is not None and confidence[index] < threshold:
+            continue
+        x, y = keypoints_xy[index]
+        valid_points.append(float(y))
+        if index in (KEYPOINT_LEFT_SHOULDER, KEYPOINT_RIGHT_SHOULDER):
+            shoulder_points += 1
+
+    if shoulder_points < 2:
+        return None
+    if not valid_points:
+        return None
+    return int(sum(valid_points) / len(valid_points))
+
+
 def main() -> None:
     args = parse_args()
     if not 0.0 <= args.confidence <= 1.0:
@@ -247,10 +424,26 @@ def main() -> None:
     publisher = FirestorePublisher(db, args.camera_id.strip(), args.max_capacity, args.snapshot_seconds)
     entries, exits, current_inside, active_date = publisher.load_state()
 
+    # Perintah dari aplikasi Flutter (visitor_commands/{cameraId}).
+    command_reader = CommandReader(db, args.camera_id.strip())
+    max_capacity = args.max_capacity
+    alert_threshold = args.alert_threshold
+    # Seed the applied-reset marker so a reset issued while the producer was
+    # offline is not replayed on startup; only resets newer than this are applied.
+    existing_command = command_reader.fetch()
+    seeded_reset = CommandReader._to_int(existing_command.get("resetOccupancyAt")) or 0
+    command_reader.last_reset_key = seeded_reset
+    max_capacity, alert_threshold, _ = command_reader.apply(
+        existing_command,
+        max_capacity=max_capacity,
+        alert_threshold=alert_threshold,
+    )
+    publisher.max_capacity = max_capacity
+
     script_dir = Path(__file__).resolve().parent
-    model_path = Path(args.model).expanduser() if args.model else script_dir / "yolo26n.pt"
-    model_source = str(model_path) if model_path.exists() else (args.model or "yolo26n.pt")
-    print(f"Loading YOLO model: {model_source}")
+    model_path = Path(args.model).expanduser() if args.model else script_dir / "yolo26n-pose.pt"
+    model_source = str(model_path) if model_path.exists() else (args.model or "yolo26n-pose.pt")
+    print(f"Loading YOLO pose model: {model_source}")
     model = YOLO(model_source)
 
     camera = open_camera(args.camera)
@@ -271,7 +464,7 @@ def main() -> None:
     alert_pending = False
     last_alert_attempt = 0.0
     print("Customer counting and Firestore publishing started.")
-    print(f"Crowd alert threshold: {args.alert_threshold} people; FCM topic: {FCM_ALERT_TOPIC}")
+    print(f"Crowd alert threshold: {alert_threshold} people; FCM topic: {FCM_ALERT_TOPIC}")
     if args.preview:
         print("Preview/debug mode enabled. Press Q or Esc to stop.")
     else:
@@ -286,6 +479,26 @@ def main() -> None:
         last_publish = time.monotonic()
 
         while True:
+            # Poll commands issued by the Flutter app (capacity, alert threshold,
+            # manual occupancy reset) and apply them to the in-RAM state.
+            command_data = command_reader.fetch()
+            new_capacity, new_threshold, reset_requested = command_reader.apply(
+                command_data,
+                max_capacity=max_capacity,
+                alert_threshold=alert_threshold,
+            )
+            if new_capacity != max_capacity:
+                max_capacity = new_capacity
+                publisher.max_capacity = max_capacity
+                count_changed = True
+            if new_threshold != alert_threshold:
+                alert_threshold = new_threshold
+                count_changed = True
+            if reset_requested:
+                current_inside = 0
+                alert_pending = False
+                count_changed = True
+
             ok, frame = camera.read()
             if not ok:
                 print("Could not read a frame from the camera; stopping.", file=sys.stderr)
@@ -303,36 +516,83 @@ def main() -> None:
             )[0]
 
             boxes = result.boxes
+            keypoints = result.keypoints
+            if keypoints is None:
+                print(
+                    "The loaded model exposes no keypoints. Use a *-pose model such as "
+                    "yolo26n-pose.pt; falling back to bounding boxes only.",
+                    file=sys.stderr,
+                )
             if boxes is not None and boxes.id is not None:
                 xyxy = boxes.xyxy.cpu().tolist()
                 track_ids = boxes.id.int().cpu().tolist()
+                # Ultralytics emits keypoints in the same row order as boxes, so poses are
+                # matched by index rather than by a track id (Keypoints has no `id` field).
+                poses_by_id: dict[int, tuple[list[tuple[float, float]], list[float]]] = {}
+                if keypoints is not None and len(keypoints) == len(track_ids):
+                    poses_xy = keypoints.xy.cpu().tolist()
+                    poses_conf = (
+                        keypoints.conf.cpu().tolist() if keypoints.conf is not None else None
+                    )
+                    poses_by_id = {
+                        track_id: (
+                            pose_xy,
+                            poses_conf[position] if poses_conf is not None else [],
+                        )
+                        for position, (track_id, pose_xy) in enumerate(zip(track_ids, poses_xy))
+                    }
+
                 for coords, track_id in zip(xyxy, track_ids):
                     x1, y1, x2, y2 = (int(value) for value in coords)
                     center_x = (x1 + x2) // 2
                     center_y = (y1 + y2) // 2
+                    pose = poses_by_id.get(track_id)
+
+                    if pose is not None:
+                        pose_xy, pose_conf = pose
+                        count_y = count_anchor_y(pose_xy, pose_conf)
+                        if count_y is None:
+                            # Only count a crossing when the pose anchor is reliable. Without the
+                            # required shoulder support, we leave the previous state unchanged.
+                            previous_centers.setdefault(track_id, center_y)
+                            if args.preview:
+                                draw_head_and_shoulders(frame, pose_xy, pose_conf)
+                                cv2.rectangle(frame, (x1, y1), (x2, y2), (50, 210, 90), 2)
+                                cv2.circle(frame, (center_x, center_y), 4, (50, 210, 90), -1)
+                                cv2.putText(
+                                    frame, f"Person ID {track_id}", (x1, max(20, y1 - 8)),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (50, 210, 90), 2, cv2.LINE_AA,
+                                )
+                            continue
+                    else:
+                        count_y = center_y
+
                     old_y = previous_centers.get(track_id)
 
-                    if old_y is not None and old_y < line_y <= center_y:
+                    if old_y is not None and old_y < line_y <= count_y:
                         previous_inside = current_inside
                         entries += 1
                         current_inside += 1
                         count_changed = True
                         print(f"ENTRY +1 | entries={entries}, exits={exits}, inside={current_inside}")
-                        if previous_inside < args.alert_threshold <= current_inside:
+                        if previous_inside < alert_threshold <= current_inside:
                             alert_pending = True
-                    elif old_y is not None and old_y > line_y >= center_y:
+                    elif old_y is not None and old_y > line_y >= count_y:
                         exits += 1
                         current_inside = max(0, current_inside - 1)
                         count_changed = True
                         print(f"EXIT -1 | entries={entries}, exits={exits}, inside={current_inside}")
-                        if current_inside < args.alert_threshold:
+                        if current_inside < alert_threshold:
                             alert_pending = False
 
-                    previous_centers[track_id] = center_y
+                    previous_centers[track_id] = count_y
 
                     if args.preview:
+                        if pose is not None:
+                            pose_xy, pose_conf = pose
+                            draw_head_and_shoulders(frame, pose_xy, pose_conf)
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (50, 210, 90), 2)
-                        cv2.circle(frame, (center_x, center_y), 4, (50, 210, 90), -1)
+                        cv2.circle(frame, (center_x, count_y), 4, (50, 210, 90), -1)
                         cv2.putText(
                             frame, f"Person ID {track_id}", (x1, max(20, y1 - 8)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.55, (50, 210, 90), 2, cv2.LINE_AA,
@@ -341,14 +601,14 @@ def main() -> None:
             now = time.monotonic()
             if (
                 alert_pending
-                and current_inside >= args.alert_threshold
+                and current_inside >= alert_threshold
                 and now - last_alert_attempt >= 10.0
             ):
                 last_alert_attempt = now
                 try:
                     message_id = send_crowd_alert(
                         current_inside,
-                        args.alert_threshold,
+                        alert_threshold,
                         args.camera_id.strip(),
                     )
                     print(

@@ -38,6 +38,15 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Perintah aplikasi (ubah ambang batas, reset jumlah pengunjung di dalam).
+    // Ditulis oleh aplikasi Flutter dan dibaca/dikerjakan oleh proses Computer
+    // Vision. Hanya admin dan operator yang boleh mengubah; viewer hanya baca.
+    match /visitor_commands/{documentId} {
+      allow read: if hasApprovedRole(['admin', 'operator', 'viewer']);
+      allow create, update: if hasApprovedRole(['admin', 'operator']);
+      allow delete: if false;
+    }
+
     // Tolak akses terhadap koleksi lain yang belum diizinkan.
     match /{document=**} {
       allow read, write: if false;

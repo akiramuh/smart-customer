@@ -29,6 +29,15 @@ Cloud Firestore
 Flutter Web / Dashboard / Riwayat / Analitik
 ```
 
+Rancangan lengkap arsitektur **online** dan **offline** (termasuk outbox,
+backoff, cache, state machine konektivitas, dan skenario uji) ada di
+[ARSITEKTUR_UTS.md](./ARSITEKTUR_UTS.md).
+
+Jawaban analisa soal UTS (diagram alur + komponen & protokol per koneksi, data
+lokal gateway, perilaku saat internet terputus/sambung lagi, serta kelebihan &
+kekurangan dari sisi latensi, keandalan, dan ketergantungan internet) ada di
+[ANALISA_ARSITEKTUR_UTS.md](./ANALISA_ARSITEKTUR_UTS.md).
+
 ## Teknologi
 
 - Flutter dan Dart
