@@ -7,11 +7,8 @@ import 'package:smart_customer_flutter/screens/settings_page.dart';
 void main() {
   group('CustomerStats', () {
     test('densityStatus sesuai jumlah pengunjung', () {
-      CustomerStats s(int n) => CustomerStats(
-            currentVisitors: n,
-            totalEntry: 0,
-            totalExit: 0,
-          );
+      CustomerStats s(int n) =>
+          CustomerStats(currentVisitors: n, totalEntry: 0, totalExit: 0);
 
       expect(s(0).densityStatus, 'SEPI');
       expect(s(1).densityStatus, 'SEPI');

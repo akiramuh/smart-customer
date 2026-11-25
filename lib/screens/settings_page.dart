@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
   int _alertThreshold = defaultAlertThreshold;
   bool _loading = true;
   bool _notificationsEnabled = true;
+  bool _signingOut = false;
 
   @override
   void initState() {
@@ -44,16 +46,16 @@ class _SettingsPageState extends State<SettingsPage> {
     _subscription = _service!
         .watchCommand(CommandService.defaultCameraId)
         .handleError((Object _) {
-      if (mounted) setState(() => _loading = false);
-    })
+          if (mounted) setState(() => _loading = false);
+        })
         .listen((command) {
-      if (!mounted) return;
-      setState(() {
-        _maxCapacity = command?.maxCapacity ?? defaultMaxCapacity;
-        _alertThreshold = command?.alertThreshold ?? defaultAlertThreshold;
-        _loading = false;
-      });
-    });
+          if (!mounted) return;
+          setState(() {
+            _maxCapacity = command?.maxCapacity ?? defaultMaxCapacity;
+            _alertThreshold = command?.alertThreshold ?? defaultAlertThreshold;
+            _loading = false;
+          });
+        });
   }
 
   CommandService? _createDefaultService() {
@@ -138,6 +140,49 @@ class _SettingsPageState extends State<SettingsPage> {
       _showSnack('Permintaan reset dikirim ke sensor.');
     } catch (_) {
       _showSnack('Gagal mengirim permintaan reset.');
+    }
+  }
+
+  Future<void> _confirmAndSignOut() async {
+    if (_signingOut) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Keluar dari aplikasi?'),
+        content: const Text(
+          'Anda harus login kembali untuk mengakses dashboard.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _signingOut = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      _showSnack('Gagal keluar (${error.code}).');
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('Gagal keluar dari aplikasi.');
+    } finally {
+      if (mounted) setState(() => _signingOut = false);
     }
   }
 
@@ -292,6 +337,23 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: Icon(Icons.info_outline),
             title: Text('Tentang Aplikasi'),
             subtitle: Text('Smart Customer v1.0'),
+          ),
+          const _SectionHeader('Sesi'),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text(
+              'Keluar',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700),
+            ),
+            subtitle: const Text('Keluar dari akun administrator'),
+            trailing: _signingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+            onTap: _signingOut ? null : _confirmAndSignOut,
           ),
         ],
       ),
